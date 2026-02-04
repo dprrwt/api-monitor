@@ -6,50 +6,48 @@ function AddEndpointModal({ onClose, onSuccess }) {
   const [url, setUrl] = useState('');
   const [interval, setInterval] = useState(60);
   const [loading, setLoading] = useState(false);
-  const [error, setError] = useState('');
+  const [error, setError] = useState(null);
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-    setError('');
-
-    if (!name.trim() || !url.trim()) {
-      setError('Name and URL are required');
-      return;
-    }
-
-    // Basic URL validation
-    try {
-      new URL(url);
-    } catch {
-      setError('Please enter a valid URL');
-      return;
-    }
-
     setLoading(true);
+    setError(null);
+
     try {
-      await addEndpoint({
-        name: name.trim(),
-        url: url.trim(),
-        interval: interval * 1000, // Convert to ms
-        enabled: true,
-      });
+      await addEndpoint({ name, url, interval });
       onSuccess();
     } catch (err) {
-      setError(err.response?.data?.error || 'Failed to add endpoint');
+      setError(err.message || 'Failed to add endpoint');
     } finally {
       setLoading(false);
     }
   };
 
+  const presets = [
+    { name: 'GitHub API', url: 'https://api.github.com' },
+    { name: 'Google', url: 'https://www.google.com' },
+    { name: 'JSONPlaceholder', url: 'https://jsonplaceholder.typicode.com/posts/1' },
+  ];
+
   return (
-    <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4">
-      <div className="bg-dark-800 rounded-xl border border-dark-600 w-full max-w-md shadow-2xl">
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+      {/* Backdrop */}
+      <div 
+        className="absolute inset-0 modal-overlay"
+        onClick={onClose}
+      />
+      
+      {/* Modal */}
+      <div className="relative w-full max-w-md glass-card p-6 border-zinc-700">
         {/* Header */}
-        <div className="flex items-center justify-between p-4 border-b border-dark-600">
-          <h2 className="text-lg font-semibold text-white">Add New Endpoint</h2>
+        <div className="flex items-center justify-between mb-6">
+          <div>
+            <h2 className="text-xl font-semibold text-white">Add Endpoint</h2>
+            <p className="text-sm text-zinc-500 mt-1">Monitor a new API endpoint</p>
+          </div>
           <button
             onClick={onClose}
-            className="p-1 text-gray-400 hover:text-white transition-colors"
+            className="p-2 text-zinc-400 hover:text-white hover:bg-white/5 rounded-lg transition-colors"
           >
             <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
@@ -57,16 +55,30 @@ function AddEndpointModal({ onClose, onSuccess }) {
           </button>
         </div>
 
-        {/* Form */}
-        <form onSubmit={handleSubmit} className="p-4 space-y-4">
-          {error && (
-            <div className="bg-red-500/10 border border-red-500/30 rounded-lg p-3 text-red-400 text-sm">
-              {error}
-            </div>
-          )}
+        {/* Quick Add */}
+        <div className="mb-6">
+          <p className="text-xs text-zinc-500 mb-2">Quick add</p>
+          <div className="flex flex-wrap gap-2">
+            {presets.map((preset) => (
+              <button
+                key={preset.url}
+                type="button"
+                onClick={() => {
+                  setName(preset.name);
+                  setUrl(preset.url);
+                }}
+                className="px-3 py-1.5 text-xs text-zinc-400 bg-zinc-800 hover:bg-zinc-700 rounded-lg transition-colors"
+              >
+                {preset.name}
+              </button>
+            ))}
+          </div>
+        </div>
 
+        {/* Form */}
+        <form onSubmit={handleSubmit} className="space-y-4">
           <div>
-            <label className="block text-sm font-medium text-gray-300 mb-2">
+            <label className="block text-sm font-medium text-zinc-300 mb-2">
               Name
             </label>
             <input
@@ -74,58 +86,71 @@ function AddEndpointModal({ onClose, onSuccess }) {
               value={name}
               onChange={(e) => setName(e.target.value)}
               placeholder="My API"
-              className="w-full px-4 py-2 bg-dark-700 border border-dark-600 rounded-lg text-white placeholder-gray-500 focus:outline-none focus:border-blue-500 transition-colors"
+              required
+              className="input-glass w-full"
             />
           </div>
 
           <div>
-            <label className="block text-sm font-medium text-gray-300 mb-2">
+            <label className="block text-sm font-medium text-zinc-300 mb-2">
               URL
             </label>
             <input
-              type="text"
+              type="url"
               value={url}
               onChange={(e) => setUrl(e.target.value)}
               placeholder="https://api.example.com/health"
-              className="w-full px-4 py-2 bg-dark-700 border border-dark-600 rounded-lg text-white placeholder-gray-500 focus:outline-none focus:border-blue-500 transition-colors font-mono text-sm"
+              required
+              className="input-glass w-full"
             />
           </div>
 
           <div>
-            <label className="block text-sm font-medium text-gray-300 mb-2">
+            <label className="block text-sm font-medium text-zinc-300 mb-2">
               Check Interval
             </label>
-            <select
-              value={interval}
-              onChange={(e) => setInterval(Number(e.target.value))}
-              className="w-full px-4 py-2 bg-dark-700 border border-dark-600 rounded-lg text-white focus:outline-none focus:border-blue-500 transition-colors"
-            >
-              <option value={30}>Every 30 seconds</option>
-              <option value={60}>Every minute</option>
-              <option value={300}>Every 5 minutes</option>
-              <option value={600}>Every 10 minutes</option>
-              <option value={1800}>Every 30 minutes</option>
-            </select>
+            <div className="grid grid-cols-4 gap-2">
+              {[30, 60, 300, 600].map((value) => (
+                <button
+                  key={value}
+                  type="button"
+                  onClick={() => setInterval(value)}
+                  className={`py-2 px-3 text-sm rounded-lg transition-colors ${
+                    interval === value
+                      ? 'bg-blue-500 text-white'
+                      : 'bg-zinc-800 text-zinc-400 hover:bg-zinc-700'
+                  }`}
+                >
+                  {value < 60 ? `${value}s` : `${value / 60}m`}
+                </button>
+              ))}
+            </div>
           </div>
 
-          {/* Actions */}
-          <div className="flex items-center gap-3 pt-2">
+          {error && (
+            <div className="p-3 rounded-lg bg-red-500/10 border border-red-500/20 text-red-400 text-sm">
+              {error}
+            </div>
+          )}
+
+          <div className="flex gap-3 pt-2">
             <button
               type="button"
               onClick={onClose}
-              className="flex-1 px-4 py-2 bg-dark-700 hover:bg-dark-600 text-gray-300 rounded-lg transition-colors font-medium"
+              className="flex-1 btn-secondary"
             >
               Cancel
             </button>
             <button
               type="submit"
               disabled={loading}
-              className="flex-1 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition-colors font-medium disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+              className="flex-1 btn-primary disabled:opacity-50"
             >
-              {loading && (
-                <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+              {loading ? (
+                <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin mx-auto" />
+              ) : (
+                'Add Endpoint'
               )}
-              Add Endpoint
             </button>
           </div>
         </form>

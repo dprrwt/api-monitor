@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import ResponseTimeChart from './ResponseTimeChart';
 import { fetchHistory, checkEndpoint, deleteEndpoint, updateEndpoint } from '../api';
 
-function EndpointCard({ endpoint, onUpdate }) {
+function EndpointCard({ endpoint, onUpdate, compact = false }) {
   const [history, setHistory] = useState([]);
   const [loading, setLoading] = useState(false);
   const [expanded, setExpanded] = useState(false);
@@ -14,21 +14,22 @@ function EndpointCard({ endpoint, onUpdate }) {
   const lastCheck = endpoint.currentStatus?.timestamp;
 
   useEffect(() => {
-    if (expanded) {
+    if (expanded || !compact) {
       loadHistory();
     }
-  }, [expanded, endpoint.id]);
+  }, [expanded, endpoint.id, compact]);
 
   const loadHistory = async () => {
     try {
-      const data = await fetchHistory(endpoint.id, 30);
+      const data = await fetchHistory(endpoint.id, 20);
       setHistory(data);
     } catch (err) {
       console.error('Failed to load history:', err);
     }
   };
 
-  const handleCheck = async () => {
+  const handleCheck = async (e) => {
+    e.stopPropagation();
     setLoading(true);
     try {
       await checkEndpoint(endpoint.id);
@@ -64,112 +65,220 @@ function EndpointCard({ endpoint, onUpdate }) {
 
   const statusStyles = {
     healthy: {
-      bg: 'bg-green-500',
+      dot: 'status-dot status-healthy',
       text: 'text-green-400',
-      border: 'border-green-500/30',
-      pulse: 'pulse-healthy',
-      icon: '🟢',
+      bg: 'bg-green-500/5',
+      border: 'hover:border-green-500/30',
+      glow: '',
     },
     degraded: {
-      bg: 'bg-yellow-500',
+      dot: 'status-dot status-degraded',
       text: 'text-yellow-400',
-      border: 'border-yellow-500/30',
-      pulse: '',
-      icon: '🟡',
+      bg: 'bg-yellow-500/5',
+      border: 'hover:border-yellow-500/30',
+      glow: '',
     },
     unhealthy: {
-      bg: 'bg-red-500',
+      dot: 'status-dot status-unhealthy',
       text: 'text-red-400',
-      border: 'border-red-500/30',
-      pulse: 'pulse-unhealthy',
-      icon: '🔴',
+      bg: 'bg-red-500/5',
+      border: 'border-red-500/20 hover:border-red-500/40',
+      glow: 'glow-danger',
     },
     unknown: {
-      bg: 'bg-gray-500',
-      text: 'text-gray-400',
-      border: 'border-gray-500/30',
-      pulse: '',
-      icon: '⚪',
+      dot: 'status-dot bg-zinc-500',
+      text: 'text-zinc-400',
+      bg: 'bg-zinc-500/5',
+      border: 'hover:border-zinc-500/30',
+      glow: '',
     },
   };
 
   const style = statusStyles[status];
 
-  return (
-    <div className={`bg-dark-800 rounded-xl border ${style.border} overflow-hidden transition-all hover:border-opacity-60`}>
-      {/* Header */}
-      <div className="p-4">
+  // Compact card for healthy endpoints
+  if (compact) {
+    return (
+      <div 
+        className={`glass-card h-full p-4 cursor-pointer ${style.border} ${style.glow}`}
+        onClick={() => setExpanded(!expanded)}
+      >
+        {/* Header */}
         <div className="flex items-start justify-between mb-3">
-          <div className="flex items-center gap-3">
-            <div className={`w-3 h-3 rounded-full ${style.bg} ${style.pulse}`}></div>
-            <div>
-              <h3 className="font-semibold text-white">{endpoint.name}</h3>
-              <p className="text-sm text-gray-500 font-mono truncate max-w-[200px]">{endpoint.url}</p>
+          <div className="flex items-center gap-3 min-w-0">
+            <div className={style.dot} />
+            <div className="min-w-0">
+              <h3 className="font-semibold text-white truncate">{endpoint.name}</h3>
+              <p className="text-xs text-zinc-500 font-mono truncate">{endpoint.url}</p>
             </div>
           </div>
           
-          {/* Menu */}
-          <div className="relative">
+          {/* Quick Actions */}
+          <div className="flex items-center gap-1">
             <button
-              onClick={() => setShowMenu(!showMenu)}
-              className="p-1 text-gray-500 hover:text-white transition-colors"
+              onClick={handleCheck}
+              disabled={loading}
+              className="p-1.5 text-zinc-500 hover:text-white hover:bg-white/5 rounded-lg transition-colors"
+              title="Check now"
             >
-              <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 24 24">
-                <path d="M12 8c1.1 0 2-.9 2-2s-.9-2-2-2-2 .9-2 2 .9 2 2 2zm0 2c-1.1 0-2 .9-2 2s.9 2 2 2 2-.9 2-2-.9-2-2-2zm0 6c-1.1 0-2 .9-2 2s.9 2 2 2 2-.9 2-2-.9-2-2-2z" />
-              </svg>
+              {loading ? (
+                <div className="w-4 h-4 border-2 border-zinc-400 border-t-transparent rounded-full animate-spin" />
+              ) : (
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                </svg>
+              )}
             </button>
-            
-            {showMenu && (
-              <div className="absolute right-0 mt-1 w-36 bg-dark-700 border border-dark-600 rounded-lg shadow-xl z-10">
+          </div>
+        </div>
+
+        {/* Metrics Row */}
+        <div className="flex items-center gap-4">
+          <div>
+            <span className="text-zinc-600 text-xs">Status</span>
+            <p className={`text-sm font-semibold ${style.text}`}>{statusCode || '—'}</p>
+          </div>
+          <div>
+            <span className="text-zinc-600 text-xs">Latency</span>
+            <p className="text-sm font-semibold text-white">{responseTime ? `${responseTime}ms` : '—'}</p>
+          </div>
+          {!endpoint.enabled && (
+            <span className="text-xs text-zinc-500 bg-zinc-800 px-2 py-0.5 rounded">Paused</span>
+          )}
+        </div>
+
+        {/* Expanded Section */}
+        {expanded && (
+          <div className="mt-4 pt-4 border-t border-zinc-800">
+            <div className="flex items-center justify-between mb-3">
+              <h4 className="text-xs text-zinc-500 font-medium">Response Time</h4>
+              <div className="flex gap-2">
                 <button
-                  onClick={handleToggle}
-                  className="w-full px-4 py-2 text-left text-sm text-gray-300 hover:bg-dark-600 transition-colors"
+                  onClick={(e) => { e.stopPropagation(); handleToggle(); }}
+                  className="text-xs text-zinc-500 hover:text-white transition-colors"
                 >
-                  {endpoint.enabled ? 'Disable' : 'Enable'}
+                  {endpoint.enabled ? 'Pause' : 'Resume'}
                 </button>
                 <button
-                  onClick={handleDelete}
-                  className="w-full px-4 py-2 text-left text-sm text-red-400 hover:bg-dark-600 transition-colors"
+                  onClick={(e) => { e.stopPropagation(); handleDelete(); }}
+                  className="text-xs text-red-400 hover:text-red-300 transition-colors"
                 >
                   Delete
                 </button>
               </div>
+            </div>
+            {history.length > 0 ? (
+              <ResponseTimeChart data={history} compact />
+            ) : (
+              <p className="text-xs text-zinc-600 text-center py-4">No history yet</p>
+            )}
+            {lastCheck && (
+              <p className="text-xs text-zinc-600 mt-2 text-center">
+                Last: {new Date(lastCheck).toLocaleTimeString()}
+              </p>
             )}
           </div>
-        </div>
+        )}
+      </div>
+    );
+  }
 
-        {/* Metrics */}
-        <div className="grid grid-cols-3 gap-2">
-          <div className="bg-dark-700/50 rounded-lg p-2 text-center">
-            <p className="text-xs text-gray-500 mb-1">Status</p>
-            <p className={`text-sm font-medium ${style.text}`}>
-              {statusCode || '—'}
-            </p>
+  // Full card for unhealthy/degraded endpoints
+  return (
+    <div className={`glass-card h-full p-5 ${style.border} ${style.glow}`}>
+      {/* Header */}
+      <div className="flex items-start justify-between mb-4">
+        <div className="flex items-center gap-3 min-w-0">
+          <div className={style.dot} />
+          <div className="min-w-0">
+            <h3 className="font-semibold text-white text-lg">{endpoint.name}</h3>
+            <p className="text-sm text-zinc-500 font-mono truncate">{endpoint.url}</p>
           </div>
-          <div className="bg-dark-700/50 rounded-lg p-2 text-center">
-            <p className="text-xs text-gray-500 mb-1">Latency</p>
-            <p className="text-sm font-medium text-white">
-              {responseTime ? `${responseTime}ms` : '—'}
-            </p>
-          </div>
-          <div className="bg-dark-700/50 rounded-lg p-2 text-center">
-            <p className="text-xs text-gray-500 mb-1">State</p>
-            <p className={`text-sm font-medium ${endpoint.enabled ? 'text-green-400' : 'text-gray-500'}`}>
-              {endpoint.enabled ? 'Active' : 'Paused'}
-            </p>
-          </div>
+        </div>
+        
+        {/* Menu */}
+        <div className="relative">
+          <button
+            onClick={() => setShowMenu(!showMenu)}
+            className="p-2 text-zinc-500 hover:text-white hover:bg-white/5 rounded-lg transition-colors"
+          >
+            <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 24 24">
+              <path d="M12 8c1.1 0 2-.9 2-2s-.9-2-2-2-2 .9-2 2 .9 2 2 2zm0 2c-1.1 0-2 .9-2 2s.9 2 2 2 2-.9 2-2-.9-2-2-2zm0 6c-1.1 0-2 .9-2 2s.9 2 2 2 2-.9 2-2-.9-2-2-2z" />
+            </svg>
+          </button>
+          
+          {showMenu && (
+            <div className="absolute right-0 mt-1 w-36 glass-card border border-zinc-700 rounded-xl shadow-xl z-10 overflow-hidden">
+              <button
+                onClick={handleToggle}
+                className="w-full px-4 py-2.5 text-left text-sm text-zinc-300 hover:bg-white/5 transition-colors"
+              >
+                {endpoint.enabled ? 'Pause Monitoring' : 'Resume Monitoring'}
+              </button>
+              <button
+                onClick={handleDelete}
+                className="w-full px-4 py-2.5 text-left text-sm text-red-400 hover:bg-white/5 transition-colors"
+              >
+                Delete Endpoint
+              </button>
+            </div>
+          )}
         </div>
       </div>
 
+      {/* Status Alert */}
+      {status === 'unhealthy' && (
+        <div className="mb-4 p-3 rounded-lg bg-red-500/10 border border-red-500/20">
+          <div className="flex items-center gap-2">
+            <svg className="w-5 h-5 text-red-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+            </svg>
+            <span className="text-red-400 font-medium">Endpoint is down</span>
+          </div>
+        </div>
+      )}
+
+      {/* Metrics */}
+      <div className="grid grid-cols-3 gap-3 mb-4">
+        <div className="bg-zinc-800/50 rounded-xl p-3 text-center">
+          <p className="text-xs text-zinc-500 mb-1">Status</p>
+          <p className={`text-lg font-bold ${style.text}`}>{statusCode || '—'}</p>
+        </div>
+        <div className="bg-zinc-800/50 rounded-xl p-3 text-center">
+          <p className="text-xs text-zinc-500 mb-1">Latency</p>
+          <p className="text-lg font-bold text-white">{responseTime ? `${responseTime}ms` : '—'}</p>
+        </div>
+        <div className="bg-zinc-800/50 rounded-xl p-3 text-center">
+          <p className="text-xs text-zinc-500 mb-1">State</p>
+          <p className={`text-lg font-bold ${endpoint.enabled ? 'text-green-400' : 'text-zinc-500'}`}>
+            {endpoint.enabled ? 'Active' : 'Paused'}
+          </p>
+        </div>
+      </div>
+
+      {/* Chart */}
+      <div className="mb-4">
+        <h4 className="text-xs text-zinc-500 font-medium mb-2">Response Time History</h4>
+        {history.length > 0 ? (
+          <div className="chart-container">
+            <ResponseTimeChart data={history} />
+          </div>
+        ) : (
+          <div className="h-20 flex items-center justify-center text-zinc-600 text-sm">
+            Collecting data...
+          </div>
+        )}
+      </div>
+
       {/* Actions */}
-      <div className="px-4 pb-4 flex items-center gap-2">
+      <div className="flex gap-2">
         <button
           onClick={handleCheck}
           disabled={loading}
-          className="flex-1 flex items-center justify-center gap-2 px-3 py-2 bg-dark-700 hover:bg-dark-600 text-gray-300 rounded-lg transition-colors text-sm disabled:opacity-50"
+          className="flex-1 btn-primary flex items-center justify-center gap-2 disabled:opacity-50"
         >
           {loading ? (
-            <div className="w-4 h-4 border-2 border-gray-400 border-t-transparent rounded-full animate-spin"></div>
+            <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
           ) : (
             <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
@@ -177,31 +286,13 @@ function EndpointCard({ endpoint, onUpdate }) {
           )}
           Check Now
         </button>
-        <button
-          onClick={() => setExpanded(!expanded)}
-          className="px-3 py-2 bg-dark-700 hover:bg-dark-600 text-gray-300 rounded-lg transition-colors text-sm"
-        >
-          <svg className={`w-4 h-4 transition-transform ${expanded ? 'rotate-180' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
-          </svg>
-        </button>
       </div>
 
-      {/* Expanded Chart */}
-      {expanded && (
-        <div className="border-t border-dark-600 p-4">
-          <h4 className="text-sm font-medium text-gray-400 mb-3">Response Time History</h4>
-          {history.length > 0 ? (
-            <ResponseTimeChart data={history} />
-          ) : (
-            <p className="text-sm text-gray-500 text-center py-4">No history data yet</p>
-          )}
-          {lastCheck && (
-            <p className="text-xs text-gray-500 mt-3 text-center">
-              Last checked: {new Date(lastCheck).toLocaleString()}
-            </p>
-          )}
-        </div>
+      {/* Last Check */}
+      {lastCheck && (
+        <p className="text-xs text-zinc-600 mt-3 text-center">
+          Last checked: {new Date(lastCheck).toLocaleString()}
+        </p>
       )}
     </div>
   );

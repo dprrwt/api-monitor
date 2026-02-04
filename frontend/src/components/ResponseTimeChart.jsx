@@ -1,132 +1,140 @@
 import { useMemo } from 'react';
-import {
-  Chart as ChartJS,
-  CategoryScale,
-  LinearScale,
-  PointElement,
-  LineElement,
-  Title,
-  Tooltip,
-  Filler,
-} from 'chart.js';
-import { Line } from 'react-chartjs-2';
 
-ChartJS.register(
-  CategoryScale,
-  LinearScale,
-  PointElement,
-  LineElement,
-  Title,
-  Tooltip,
-  Filler
-);
-
-function ResponseTimeChart({ data }) {
+function ResponseTimeChart({ data, compact = false }) {
   const chartData = useMemo(() => {
-    const labels = data.map((d) => {
-      const date = new Date(d.timestamp);
-      return date.toLocaleTimeString('en-US', { 
-        hour: '2-digit', 
-        minute: '2-digit',
-        hour12: false 
-      });
-    });
+    if (!data || data.length === 0) return null;
 
-    const responseTimes = data.map((d) => d.responseTime || 0);
-    const statusColors = data.map((d) => {
-      switch (d.status) {
-        case 'healthy': return 'rgba(34, 197, 94, 1)';
-        case 'degraded': return 'rgba(234, 179, 8, 1)';
-        case 'unhealthy': return 'rgba(239, 68, 68, 1)';
-        default: return 'rgba(107, 114, 128, 1)';
-      }
-    });
+    const times = data.map(d => d.responseTime || 0);
+    const max = Math.max(...times, 100);
+    const min = Math.min(...times);
+    const avg = Math.round(times.reduce((a, b) => a + b, 0) / times.length);
 
     return {
-      labels,
-      datasets: [
-        {
-          label: 'Response Time (ms)',
-          data: responseTimes,
-          fill: true,
-          borderColor: 'rgb(59, 130, 246)',
-          backgroundColor: 'rgba(59, 130, 246, 0.1)',
-          tension: 0.4,
-          pointRadius: 4,
-          pointBackgroundColor: statusColors,
-          pointBorderColor: statusColors,
-          pointHoverRadius: 6,
-        },
-      ],
+      points: data.map((d, i) => ({
+        x: (i / (data.length - 1 || 1)) * 100,
+        y: 100 - ((d.responseTime || 0) / max) * 100,
+        value: d.responseTime,
+        status: d.status,
+        time: new Date(d.timestamp).toLocaleTimeString(),
+      })),
+      max,
+      min,
+      avg,
     };
   }, [data]);
 
-  const options = {
-    responsive: true,
-    maintainAspectRatio: false,
-    interaction: {
-      mode: 'index',
-      intersect: false,
-    },
-    plugins: {
-      legend: {
-        display: false,
-      },
-      tooltip: {
-        backgroundColor: 'rgba(18, 18, 26, 0.95)',
-        titleColor: '#fff',
-        bodyColor: '#9ca3af',
-        borderColor: 'rgba(255, 255, 255, 0.1)',
-        borderWidth: 1,
-        padding: 12,
-        displayColors: false,
-        callbacks: {
-          label: function(context) {
-            const point = data[context.dataIndex];
-            return [
-              `Response: ${context.raw}ms`,
-              `Status: ${point.status}`,
-              point.statusCode ? `Code: ${point.statusCode}` : '',
-            ].filter(Boolean);
-          },
-        },
-      },
-    },
-    scales: {
-      x: {
-        grid: {
-          color: 'rgba(255, 255, 255, 0.05)',
-        },
-        ticks: {
-          color: '#6b7280',
-          font: {
-            size: 10,
-          },
-          maxRotation: 0,
-          maxTicksLimit: 6,
-        },
-      },
-      y: {
-        grid: {
-          color: 'rgba(255, 255, 255, 0.05)',
-        },
-        ticks: {
-          color: '#6b7280',
-          font: {
-            size: 10,
-          },
-          callback: function(value) {
-            return value + 'ms';
-          },
-        },
-        beginAtZero: true,
-      },
-    },
-  };
+  if (!chartData) {
+    return (
+      <div className={`flex items-center justify-center ${compact ? 'h-16' : 'h-24'} text-zinc-600 text-sm`}>
+        No data
+      </div>
+    );
+  }
+
+  const height = compact ? 48 : 80;
+  const pathD = chartData.points
+    .map((p, i) => `${i === 0 ? 'M' : 'L'} ${p.x} ${p.y}`)
+    .join(' ');
+
+  // Area fill path
+  const areaD = `${pathD} L 100 100 L 0 100 Z`;
 
   return (
-    <div className="h-48">
-      <Line data={chartData} options={options} />
+    <div className={compact ? '' : ''}>
+      {/* Stats Row */}
+      {!compact && (
+        <div className="flex items-center gap-4 mb-3 text-xs">
+          <div className="flex items-center gap-1.5">
+            <span className="w-2 h-2 rounded-full bg-blue-500" />
+            <span className="text-zinc-500">Avg:</span>
+            <span className="text-white font-medium">{chartData.avg}ms</span>
+          </div>
+          <div className="flex items-center gap-1.5">
+            <span className="text-zinc-500">Min:</span>
+            <span className="text-green-400 font-medium">{chartData.min}ms</span>
+          </div>
+          <div className="flex items-center gap-1.5">
+            <span className="text-zinc-500">Max:</span>
+            <span className="text-yellow-400 font-medium">{chartData.max}ms</span>
+          </div>
+        </div>
+      )}
+
+      {/* Chart */}
+      <div className="relative" style={{ height }}>
+        <svg 
+          viewBox="0 0 100 100" 
+          preserveAspectRatio="none"
+          className="w-full h-full"
+        >
+          {/* Gradient Definition */}
+          <defs>
+            <linearGradient id="chartGradient" x1="0%" y1="0%" x2="0%" y2="100%">
+              <stop offset="0%" stopColor="rgb(59, 130, 246)" stopOpacity="0.3" />
+              <stop offset="100%" stopColor="rgb(59, 130, 246)" stopOpacity="0" />
+            </linearGradient>
+            <linearGradient id="lineGradient" x1="0%" y1="0%" x2="100%" y2="0%">
+              <stop offset="0%" stopColor="rgb(59, 130, 246)" />
+              <stop offset="100%" stopColor="rgb(99, 102, 241)" />
+            </linearGradient>
+          </defs>
+
+          {/* Grid Lines */}
+          <line x1="0" y1="25" x2="100" y2="25" stroke="rgba(63, 63, 70, 0.3)" strokeWidth="0.5" vectorEffect="non-scaling-stroke" />
+          <line x1="0" y1="50" x2="100" y2="50" stroke="rgba(63, 63, 70, 0.3)" strokeWidth="0.5" vectorEffect="non-scaling-stroke" />
+          <line x1="0" y1="75" x2="100" y2="75" stroke="rgba(63, 63, 70, 0.3)" strokeWidth="0.5" vectorEffect="non-scaling-stroke" />
+
+          {/* Area Fill */}
+          <path
+            d={areaD}
+            fill="url(#chartGradient)"
+          />
+
+          {/* Line */}
+          <path
+            d={pathD}
+            fill="none"
+            stroke="url(#lineGradient)"
+            strokeWidth="2"
+            vectorEffect="non-scaling-stroke"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+          />
+
+          {/* Data Points */}
+          {!compact && chartData.points.map((point, i) => (
+            <g key={i}>
+              <circle
+                cx={point.x}
+                cy={point.y}
+                r="3"
+                fill={point.status === 'healthy' ? '#22c55e' : point.status === 'degraded' ? '#eab308' : '#ef4444'}
+                className="opacity-0 hover:opacity-100 transition-opacity cursor-pointer"
+              />
+            </g>
+          ))}
+        </svg>
+
+        {/* Y-axis Labels */}
+        {!compact && (
+          <>
+            <span className="absolute left-0 top-0 text-[10px] text-zinc-600 transform -translate-y-1/2">
+              {chartData.max}ms
+            </span>
+            <span className="absolute left-0 bottom-0 text-[10px] text-zinc-600 transform translate-y-1/2">
+              0ms
+            </span>
+          </>
+        )}
+      </div>
+
+      {/* Mini stats for compact mode */}
+      {compact && (
+        <div className="flex items-center justify-between mt-2 text-xs text-zinc-500">
+          <span>Avg: {chartData.avg}ms</span>
+          <span>Latest: {chartData.points[chartData.points.length - 1]?.value || 0}ms</span>
+        </div>
+      )}
     </div>
   );
 }
