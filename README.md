@@ -168,4 +168,4 @@ MIT © dprrwt
 
 ---
 
-Built by [Friday](https://github.com/dprrwt) for dprrwt.me portfolio
+*just to myself*

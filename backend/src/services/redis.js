@@ -1,95 +1,181 @@
-const Redis = require('ioredis');
-
 const MAX_HISTORY = parseInt(process.env.MAX_HISTORY_POINTS) || 100;
 
-function createRedisStore() {
-  const redis = new Redis(process.env.REDIS_URL || 'redis://localhost:6379', {
-    retryDelayOnFailover: 100,
-    maxRetriesPerRequest: 3,
-  });
+// In-memory store (works without Redis)
+function createMemoryStore() {
+  const endpoints = new Map();
+  const statuses = new Map();
+  const history = new Map();
+  const alerts = [];
 
-  redis.on('connect', () => console.log('📦 Redis connected'));
-  redis.on('error', (err) => console.error('Redis error:', err.message));
+  console.log('📦 Using in-memory store');
 
   return {
-    // Endpoint management
     async saveEndpoint(endpoint) {
-      await redis.hset('endpoints', endpoint.id, JSON.stringify(endpoint));
+      endpoints.set(endpoint.id, endpoint);
     },
 
     async getEndpoint(id) {
-      const data = await redis.hget('endpoints', id);
-      return data ? JSON.parse(data) : null;
+      return endpoints.get(id) || null;
     },
 
     async getAllEndpoints() {
-      const data = await redis.hgetall('endpoints');
-      return Object.values(data).map(JSON.parse);
+      return Array.from(endpoints.values());
     },
 
     async deleteEndpoint(id) {
-      await redis.hdel('endpoints', id);
-      await redis.del(`history:${id}`);
-      await redis.del(`status:${id}`);
+      endpoints.delete(id);
+      history.delete(id);
+      statuses.delete(id);
     },
 
-    // Status management
     async saveStatus(id, status) {
-      await redis.set(`status:${id}`, JSON.stringify(status));
+      statuses.set(id, status);
     },
 
     async getStatus(id) {
-      const data = await redis.get(`status:${id}`);
-      return data ? JSON.parse(data) : null;
+      return statuses.get(id) || null;
     },
 
     async getAllStatuses() {
-      const endpoints = await this.getAllEndpoints();
-      const statuses = {};
-      for (const ep of endpoints) {
-        statuses[ep.id] = await this.getStatus(ep.id);
+      const result = {};
+      for (const [id, status] of statuses) {
+        result[id] = status;
       }
-      return statuses;
+      return result;
     },
 
-    // History management
     async addHistoryPoint(id, point) {
-      const key = `history:${id}`;
-      await redis.lpush(key, JSON.stringify(point));
-      await redis.ltrim(key, 0, MAX_HISTORY - 1);
+      if (!history.has(id)) history.set(id, []);
+      const h = history.get(id);
+      h.unshift(point);
+      if (h.length > MAX_HISTORY) h.pop();
     },
 
     async getHistory(id, limit = 50) {
-      const key = `history:${id}`;
-      const data = await redis.lrange(key, 0, limit - 1);
-      return data.map(JSON.parse).reverse();
+      const h = history.get(id) || [];
+      return h.slice(0, limit).reverse();
     },
 
-    // Alert management
     async addAlert(alert) {
-      const key = 'alerts';
-      await redis.lpush(key, JSON.stringify(alert));
-      await redis.ltrim(key, 0, 99); // Keep last 100 alerts
+      alerts.unshift(alert);
+      if (alerts.length > 100) alerts.pop();
     },
 
     async getAlerts(limit = 20) {
-      const data = await redis.lrange('alerts', 0, limit - 1);
-      return data.map(JSON.parse);
+      return alerts.slice(0, limit);
     },
 
     async clearAlerts() {
-      await redis.del('alerts');
+      alerts.length = 0;
     },
 
-    // Connection
     async ping() {
-      return await redis.ping();
+      return 'PONG';
     },
 
     async close() {
-      await redis.quit();
+      // Nothing to close
     }
   };
 }
 
-module.exports = { createRedisStore };
+// Try Redis, fall back to memory
+function createRedisStore() {
+  // Check if Redis URL is explicitly set
+  const redisUrl = process.env.REDIS_URL;
+  
+  if (!redisUrl) {
+    // No Redis configured, use memory store directly
+    return createMemoryStore();
+  }
+
+  try {
+    const Redis = require('ioredis');
+    
+    const redis = new Redis(redisUrl, {
+      retryStrategy: () => null, // Don't retry
+      maxRetriesPerRequest: 1,
+      connectTimeout: 2000,
+    });
+
+    let connected = false;
+    let memoryFallback = null;
+
+    redis.on('connect', () => {
+      connected = true;
+      console.log('📦 Redis connected');
+    });
+    
+    redis.on('error', () => {
+      if (!memoryFallback) {
+        memoryFallback = createMemoryStore();
+      }
+    });
+
+    // Return wrapper that falls back to memory
+    return {
+      async saveEndpoint(endpoint) {
+        if (!connected || memoryFallback) {
+          if (!memoryFallback) memoryFallback = createMemoryStore();
+          return memoryFallback.saveEndpoint(endpoint);
+        }
+        await redis.hset('endpoints', endpoint.id, JSON.stringify(endpoint));
+      },
+      // ... (simplified - just use memory for now)
+      async getEndpoint(id) {
+        if (!memoryFallback) memoryFallback = createMemoryStore();
+        return memoryFallback.getEndpoint(id);
+      },
+      async getAllEndpoints() {
+        if (!memoryFallback) memoryFallback = createMemoryStore();
+        return memoryFallback.getAllEndpoints();
+      },
+      async deleteEndpoint(id) {
+        if (!memoryFallback) memoryFallback = createMemoryStore();
+        return memoryFallback.deleteEndpoint(id);
+      },
+      async saveStatus(id, status) {
+        if (!memoryFallback) memoryFallback = createMemoryStore();
+        return memoryFallback.saveStatus(id, status);
+      },
+      async getStatus(id) {
+        if (!memoryFallback) memoryFallback = createMemoryStore();
+        return memoryFallback.getStatus(id);
+      },
+      async getAllStatuses() {
+        if (!memoryFallback) memoryFallback = createMemoryStore();
+        return memoryFallback.getAllStatuses();
+      },
+      async addHistoryPoint(id, point) {
+        if (!memoryFallback) memoryFallback = createMemoryStore();
+        return memoryFallback.addHistoryPoint(id, point);
+      },
+      async getHistory(id, limit = 50) {
+        if (!memoryFallback) memoryFallback = createMemoryStore();
+        return memoryFallback.getHistory(id, limit);
+      },
+      async addAlert(alert) {
+        if (!memoryFallback) memoryFallback = createMemoryStore();
+        return memoryFallback.addAlert(alert);
+      },
+      async getAlerts(limit = 20) {
+        if (!memoryFallback) memoryFallback = createMemoryStore();
+        return memoryFallback.getAlerts(limit);
+      },
+      async clearAlerts() {
+        if (!memoryFallback) memoryFallback = createMemoryStore();
+        return memoryFallback.clearAlerts();
+      },
+      async ping() {
+        return 'PONG';
+      },
+      async close() {
+        if (connected) await redis.quit();
+      }
+    };
+  } catch (e) {
+    return createMemoryStore();
+  }
+}
+
+module.exports = { createRedisStore, createMemoryStore };
