@@ -75,6 +75,7 @@ Open http://localhost:5173 (frontend proxies API calls to backend on port 3001)
 | `REDIS_URL` | `redis://localhost:6379` | Redis connection URL |
 | `DEFAULT_CHECK_INTERVAL` | `60000` | Default check interval (ms) |
 | `MAX_HISTORY_POINTS` | `100` | Max data points stored per endpoint |
+| `LATENCY_THRESHOLD` | `3000` | Default latency threshold in ms (responses slower than this are marked degraded) |
 | `ALERT_WEBHOOK_URL` | — | Optional webhook for alerts |
 
 ### Default Endpoints
@@ -109,9 +110,12 @@ curl -X POST http://localhost:3001/api/endpoints \
     "name": "My API",
     "url": "https://my-api.example.com/health",
     "interval": 30000,
+    "latencyThreshold": 2000,
     "enabled": true
   }'
 ```
+
+> **Latency threshold:** If an endpoint responds with 2xx but takes longer than `latencyThreshold` ms, it's marked as **degraded** instead of healthy. Default: 3000ms. Configurable per-endpoint or globally via `LATENCY_THRESHOLD` env var.
 
 ## Tech Stack
 

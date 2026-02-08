@@ -32,8 +32,11 @@ function createMonitorService(store) {
     },
   ];
 
+  const DEFAULT_LATENCY_THRESHOLD = parseInt(process.env.LATENCY_THRESHOLD) || 3000;
+
   async function checkEndpoint(endpoint) {
     const startTime = Date.now();
+    const latencyThreshold = endpoint.latencyThreshold || DEFAULT_LATENCY_THRESHOLD;
     let status = {
       id: endpoint.id,
       timestamp: new Date().toISOString(),
@@ -54,7 +57,12 @@ function createMonitorService(store) {
       status.responseTime = responseTime;
 
       if (response.status >= 200 && response.status < 300) {
-        status.status = 'healthy';
+        // 2xx but slow → degraded
+        if (responseTime > latencyThreshold) {
+          status.status = 'degraded';
+        } else {
+          status.status = 'healthy';
+        }
       } else if (response.status >= 400 && response.status < 500) {
         status.status = 'degraded';
       } else {
@@ -65,6 +73,9 @@ function createMonitorService(store) {
       status.responseTime = Date.now() - startTime;
       status.error = error.message;
     }
+
+    // Read previous status BEFORE saving new one (fix: alert comparison)
+    const prevStatus = await store.getStatus(endpoint.id);
 
     // Save current status
     await store.saveStatus(endpoint.id, status);
@@ -77,10 +88,12 @@ function createMonitorService(store) {
       responseTime: status.responseTime,
     });
 
-    // Check for alerts
-    const prevStatus = await store.getStatus(endpoint.id);
-    if (prevStatus && prevStatus.status === 'healthy' && status.status === 'unhealthy') {
-      await triggerAlert(endpoint, status);
+    // Alert on state transitions
+    const prevState = prevStatus?.status;
+    if (prevState && prevState !== status.status) {
+      if (status.status === 'unhealthy' || status.status === 'degraded') {
+        await triggerAlert(endpoint, status);
+      }
     }
 
     console.log(`[${new Date().toISOString()}] ${endpoint.name}: ${status.status} (${status.responseTime}ms)`);
@@ -163,6 +176,7 @@ function createMonitorService(store) {
         name: data.name,
         url: data.url,
         interval: data.interval || DEFAULT_INTERVAL,
+        latencyThreshold: data.latencyThreshold || DEFAULT_LATENCY_THRESHOLD,
         enabled: data.enabled !== false,
         createdAt: new Date().toISOString(),
       };
