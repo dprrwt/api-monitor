@@ -3,7 +3,17 @@ import Dashboard from './components/Dashboard';
 import Header from './components/Header';
 import AddEndpointModal from './components/AddEndpointModal';
 import AlertsPanel from './components/AlertsPanel';
-import { fetchEndpoints, fetchAlerts, fetchStats } from './api';
+import { fetchEndpoints, fetchAlerts, fetchStats, IS_DEMO } from './api';
+
+function DemoBanner({ onDismiss }) {
+  return (
+    <div className="relative bg-gradient-to-r from-amber-500/90 to-orange-500/90 text-white text-center py-2.5 px-4 text-sm font-medium shadow-lg z-50">
+      <span className="mr-1">⚠️</span> This is a <strong>demo</strong> with mock data — not a live monitor.
+      <a href="https://github.com/dprrwt/api-monitor" target="_blank" rel="noopener noreferrer" className="underline ml-2 hover:text-white/80">View source & self-host →</a>
+      <button onClick={onDismiss} className="absolute right-3 top-1/2 -translate-y-1/2 hover:text-white/70 text-white/90 text-lg leading-none" aria-label="Dismiss">✕</button>
+    </div>
+  );
+}
 
 function App() {
   const [endpoints, setEndpoints] = useState([]);
@@ -13,6 +23,7 @@ function App() {
   const [error, setError] = useState(null);
   const [showAddModal, setShowAddModal] = useState(false);
   const [showAlerts, setShowAlerts] = useState(false);
+  const [showDemoBanner, setShowDemoBanner] = useState(IS_DEMO);
 
   const loadData = useCallback(async () => {
     try {
@@ -56,6 +67,7 @@ function App() {
 
   return (
     <div className="min-h-screen bg-gradient-mesh">
+      {showDemoBanner && <DemoBanner onDismiss={() => setShowDemoBanner(false)} />}
       <Header 
         stats={stats} 
         alertCount={alerts.length}

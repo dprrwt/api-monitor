@@ -1,5 +1,7 @@
 import axios from 'axios';
 
+export const IS_DEMO = false;
+
 const API_BASE = import.meta.env.PROD ? '/api' : '/api';
 
 const api = axios.create({

@@ -1,6 +1,8 @@
 // Drop-in replacement for api.js — serves mock data for static demo
 import { DEMO_ENDPOINTS, DEMO_ALERTS, DEMO_STATS } from './demo-data';
 
+export const IS_DEMO = true;
+
 const delay = (ms) => new Promise((r) => setTimeout(r, ms));
 
 // Transform demo data to match backend API format (currentStatus object)
