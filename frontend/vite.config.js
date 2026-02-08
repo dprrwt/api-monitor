@@ -1,18 +1,9 @@
 import { defineConfig } from 'vite';
 import react from '@vitejs/plugin-react';
-import path from 'path';
-
-const isDemo = !!process.env.DEMO;
 
 export default defineConfig({
   plugins: [react()],
-  base: isDemo ? '/api-monitor/' : '/',
-  resolve: {
-    alias: isDemo ? {
-      // Redirect all api imports to demo mock layer
-      [path.resolve(__dirname, 'src/api.js')]: path.resolve(__dirname, 'src/api-demo.js'),
-    } : {},
-  },
+  base: '/api-monitor/',
   server: {
     port: 5173,
     proxy: {

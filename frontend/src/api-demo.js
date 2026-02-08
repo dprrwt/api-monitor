@@ -3,15 +3,22 @@ import { DEMO_ENDPOINTS, DEMO_ALERTS, DEMO_STATS } from './demo-data';
 
 const delay = (ms) => new Promise((r) => setTimeout(r, ms));
 
-// Simulate slight data changes on each "refresh"
+// Transform demo data to match backend API format (currentStatus object)
 function jitterEndpoints() {
-  return DEMO_ENDPOINTS.map((ep) => ({
-    ...ep,
-    lastCheck: new Date().toISOString(),
-    lastResponseTime: ep.lastResponseTime
+  return DEMO_ENDPOINTS.map((ep) => {
+    const rt = ep.lastResponseTime
       ? Math.max(10, ep.lastResponseTime + Math.round((Math.random() - 0.5) * 30))
-      : null,
-  }));
+      : null;
+    return {
+      ...ep,
+      currentStatus: {
+        status: ep.status,
+        responseTime: rt,
+        statusCode: ep.status === 'unhealthy' ? 500 : ep.status === 'degraded' ? 200 : 200,
+        timestamp: new Date().toISOString(),
+      },
+    };
+  });
 }
 
 export const fetchEndpoints = async () => {
