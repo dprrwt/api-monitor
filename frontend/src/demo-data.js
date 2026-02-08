@@ -16,7 +16,7 @@ export const DEMO_ENDPOINTS = [
   {
     id: 'gh-api',
     name: 'GitHub API',
-    url: 'https://api.github.com',
+    url: 'https://demo.api.github.com',
     interval: 60000,
     enabled: true,
     status: 'healthy',
@@ -28,7 +28,7 @@ export const DEMO_ENDPOINTS = [
   {
     id: 'jsonplaceholder',
     name: 'JSONPlaceholder',
-    url: 'https://jsonplaceholder.typicode.com/posts/1',
+    url: 'https://demo.jsonplaceholder.typicode.com/posts/1',
     interval: 60000,
     enabled: true,
     status: 'healthy',
@@ -40,7 +40,7 @@ export const DEMO_ENDPOINTS = [
   {
     id: 'httpbin',
     name: 'HTTPBin',
-    url: 'https://httpbin.org/get',
+    url: 'https://demo.httpbin.org/get',
     interval: 30000,
     enabled: true,
     status: 'degraded',
@@ -52,7 +52,7 @@ export const DEMO_ENDPOINTS = [
   {
     id: 'stripe-api',
     name: 'Stripe API',
-    url: 'https://api.stripe.com/v1/health',
+    url: 'https://demo.api.stripe.com/v1/health',
     interval: 60000,
     enabled: true,
     status: 'healthy',
@@ -64,7 +64,7 @@ export const DEMO_ENDPOINTS = [
   {
     id: 'custom-api',
     name: 'My Production API',
-    url: 'https://api.example.com/health',
+    url: 'https://demo.api.example.com/health',
     interval: 30000,
     enabled: true,
     status: 'unhealthy',
