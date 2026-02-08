@@ -7,11 +7,12 @@ const isDemo = !!process.env.DEMO;
 export default defineConfig({
   plugins: [react()],
   base: isDemo ? '/api-monitor/' : '/',
-  resolve: isDemo ? {
-    alias: {
-      './api': path.resolve(__dirname, 'src/api-demo.js'),
-    },
-  } : {},
+  resolve: {
+    alias: isDemo ? {
+      // Redirect all api imports to demo mock layer
+      [path.resolve(__dirname, 'src/api.js')]: path.resolve(__dirname, 'src/api-demo.js'),
+    } : {},
+  },
   server: {
     port: 5173,
     proxy: {
